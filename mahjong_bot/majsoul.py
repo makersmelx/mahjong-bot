@@ -1,8 +1,7 @@
-from random import random
-from signal import raise_signal
+import random
+from sys import stderr
 import requests
 
-ACCESS_TOKEN = ""
 URL_BASE = 'https://game.maj-soul.com/1/'
 MAX_ATTEMPT_PER_SERVER = 2
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36"
@@ -14,11 +13,8 @@ HEADERS = {
     "sec-ch-ua-platform": "Windows",
 }
 
-
-
 class Majsoul:
     def __init__(self) -> None:
-        self.access_token = ACCESS_TOKEN
         self.session = requests.Session()
         self.set_requests_session()
 
@@ -45,25 +41,41 @@ class Majsoul:
             # a list of urls where we can request for game server information
             request_game_server_url_list = ip_config['region_urls']
         except KeyError as e:
-            print(e)
+            print(e, stderr)
             print("Majsoul api may have changed. Please notify the author.")
 
         last_error: Exception = None
 
         for attempt in range(len(request_game_server_url_list) * MAX_ATTEMPT_PER_SERVER):
-            request_game_server_url = request_game_server_url_list[attempt // 2]['url']
-            request_game_server_url += "?service=ws-gateway&protocol=ws&ssl=true&rv=" + str(random())[2:].ljust(17, '0');
-            print(request_game_server_url)
+            request_game_server_url = request_game_server_url_list[attempt // MAX_ATTEMPT_PER_SERVER]['url']
+            # the final url where we request for game server info
+            # javascript float type has 17 digits after the dot.
+            request_game_server_url \
+                += "?service=ws-gateway&protocol=ws&ssl=true&rv=" \
+                + str(random.random())[2:].ljust(17, '0');
+
             try:
                 game_server_info = self.session.get(request_game_server_url).json()
+                print(game_server_info)
+                # check maintenance
                 if 'maintenance' in game_server_info:
                     print("Majsoul is in maintenance")
                     return
+
+                game_server_url = random.choice(game_server_info["servers"])
+
+                if 'maj-soul' not in game_server_url:
+                    game_server_url += '/gateway'
+                print(game_server_url)
+
+                break
             except Exception as e:
                 last_error = e
-            break
+                print(e, stderr)
+                continue
         # failed to fetch game servers
         if last_error:
+            print(e, stderr)
             return last_error
 
 
